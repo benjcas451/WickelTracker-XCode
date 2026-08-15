@@ -1,32 +1,26 @@
-//
-//  wickelApp.swift
-//  wickel
-//
-//  Created by Lucas Tschirch on 15.08.26.
-//
-
 import SwiftUI
-import SwiftData
 
 @main
-struct wickelApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+struct WickelApp: App {
+  @Environment(\.scenePhase) private var scenePhase
 
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+  init() {
+    NunitoFont.registrieren()
+    AppSettings.migrationAusfuehren()
+    // Nimmt Einträge der Apple Watch entgegen (WatchConnectivity).
+    WatchBridge.shared.activate()
+  }
 
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-        .modelContainer(sharedModelContainer)
+  var body: some Scene {
+    WindowGroup {
+      HomeView()
     }
+    .onChange(of: scenePhase) { phase in
+      // Beim Zurückkehren in den Vordergrund können Watch-Einträge angefallen
+      // sein, die iOS im Hintergrund zugestellt hat.
+      if phase == .active {
+        WatchBridge.shared.verarbeitePending()
+      }
+    }
+  }
 }

@@ -1,0 +1,7 @@
+# Xcode-Nutzerzustand und Build-Artefakte
+xcuserdata/
+DerivedData/
+build/
+*.ipa
+*.xcarchive
+.DS_Store

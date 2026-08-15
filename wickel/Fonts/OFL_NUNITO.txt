@@ -1,0 +1,6 @@
+Nunito (https://fonts.google.com/specimen/Nunito)
+Copyright 2014 The Nunito Project Authors (https://github.com/googlefonts/nunito)
+
+Lizenz: SIL Open Font License 1.1 (https://openfontlicense.org)
+Die vier eingebetteten Schnitte (Regular 400, SemiBold 600, Bold 700,
+ExtraBold 800) stammen unverändert von Google Fonts.

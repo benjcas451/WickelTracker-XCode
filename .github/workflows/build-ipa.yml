@@ -1,0 +1,48 @@
+name: iOS IPA (Release)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    name: Unsignierte IPA bauen und als Release veröffentlichen
+    runs-on: macos-latest
+    # GITHUB_TOKEN braucht Schreibrechte, um Tag + Release anzulegen.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Unsigniert bauen (Sideloading signiert beim Installieren selbst).
+      # Die Watch-App wird als Abhängigkeit mitgebaut und ins App-Bundle
+      # eingebettet (wickel.app/Watch/WickelWatch.app).
+      # CURRENT_PROJECT_VERSION = run_number haelt CFBundleVersion strikt
+      # steigend, damit Update-Erkennung beim Sideloading funktioniert.
+      - name: App bauen (Release, iphoneos, ohne Signierung)
+        run: |
+          xcodebuild \
+            -project wickel.xcodeproj \
+            -scheme wickel \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            build
+
+      - name: IPA packen
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/wickel.app Payload/
+          zip -qq -r -9 Wickel.ipa Payload
+
+      - name: IPA als GitHub-Release veröffentlichen
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: Wickel.ipa
+          asset_name: Wickel-v2.0.0-${{ github.run_number }}.ipa
+          tag: v2.0.0-${{ github.run_number }}
+          overwrite: true
+          body: "Wickeln-Tracker v2.0.0 (Lauf ${{ github.run_number }}) – unsignierte IPA inkl. eingebetteter watchOS-App"
