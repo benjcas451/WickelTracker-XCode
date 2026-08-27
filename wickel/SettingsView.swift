@@ -454,5 +454,23 @@ extension SettingsView {
 
     Die Statistik (heute / 7 Tage / 3 Wochen / 30 Tage) wird lokal aus diesen \
     Einträgen berechnet – mit denselben Prozentwerten wie die Server-API.
+
+    Sicherung & Gerätewechsel
+
+    Die Einträge liegen in der SQLite-Datei im app-privaten Speicher und werden \
+    vom iCloud-Backup mitgesichert – nach einer Wiederherstellung sind sie also wieder da.
+
+    Der API-Key liegt dagegen nicht in den Einstellungen, sondern in der Keychain. \
+    Er wandert beim Direkttransfer auf ein neues Gerät (Schnellstart) und im \
+    verschlüsselten Backup über den Computer mit, lässt sich aus einem \
+    iCloud-Backup aber nicht wiederherstellen. Das ist Absicht: der Schlüssel \
+    soll nicht auf fremden Servern liegen. Nach einer Wiederherstellung aus \
+    iCloud muss er einmal neu eingetragen werden.
+
+    Client-Zertifikate (client.crt / client.key) liegen im App-Ordner der \
+    Dateien-App und sind nach einem Gerätewechsel gegebenenfalls neu abzulegen.
+
+    Unabhängig davon lässt sich hier jederzeit ein eigenes Backup als \
+    JSON-Datei sichern und wieder einspielen.
     """
 }
