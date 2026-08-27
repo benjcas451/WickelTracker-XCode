@@ -31,6 +31,33 @@ enum LocalBackupService {
       withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
   }
 
+  /// Obergrenze für ein einzulesendes Backup. Ein JSON-Backup dieser App liegt
+  /// bei rund 120 Byte je Eintrag – 16 MB reichen also für weit über 100.000
+  /// Einträge. Der Wert ist bewusst derselbe wie in der Android-App.
+  static let maxImportBytes = 16 * 1024 * 1024
+
+  /// Liest eine Backup-Datei mit Größengrenze. Ohne sie zieht eine
+  /// versehentlich gewählte Riesendatei erst die Datei und dann den daraus
+  /// gebauten JSON-Baum in den Speicher – zusammen ein Vielfaches der
+  /// Dateigröße, und das System beendet die App.
+  static func leseBegrenzt(_ url: URL) throws -> Data {
+    let groesse = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+    if let groesse, groesse > maxImportBytes {
+      throw ServiceError(
+        message: "Die Datei ist mit \(groesse / 1024 / 1024) MB zu groß für ein Backup "
+          + "(erlaubt sind \(maxImportBytes / 1024 / 1024) MB).")
+    }
+    let daten = try Data(contentsOf: url, options: .mappedIfSafe)
+    // Fällt die Größenabfrage aus (z. B. bei einem Cloud-Platzhalter), greift
+    // die Grenze hier immer noch.
+    guard daten.count <= maxImportBytes else {
+      throw ServiceError(
+        message: "Die Datei ist mit \(daten.count / 1024 / 1024) MB zu groß für ein Backup "
+          + "(erlaubt sind \(maxImportBytes / 1024 / 1024) MB).")
+    }
+    return daten
+  }
+
   /// Prüft ein Backup und liefert die Zeilen passend zum Tabellenschema.
   static func parseUndValidiere(_ data: Data) throws -> [EntryRow] {
     guard let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
