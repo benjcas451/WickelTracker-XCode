@@ -263,7 +263,8 @@ struct SettingsView: View {
           throw ServiceError(message: "Datei ließ sich nicht öffnen.")
         }
         defer { url.stopAccessingSecurityScopedResource() }
-        let rows = try LocalBackupService.parseUndValidiere(try Data(contentsOf: url))
+        let rows = try LocalBackupService.parseUndValidiere(
+          try LocalBackupService.leseBegrenzt(url))
         try await DemoService.shared.replaceAll(rows)
         meldung = "Wiederherstellung erfolgreich: \(rows.count) Einträge."
       } catch {
