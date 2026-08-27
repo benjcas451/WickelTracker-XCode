@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 /// Welche Datenquelle die App verwendet. Rohwerte identisch zur Flutter-App.
 enum DataSourceMode: String {
@@ -10,7 +11,8 @@ enum DataSourceMode: String {
   case demo
 }
 
-/// Lädt und speichert App-Einstellungen (UserDefaults).
+/// Lädt und speichert App-Einstellungen (UserDefaults) – mit einer Ausnahme:
+/// der API-Key liegt in der Keychain, siehe `ApiKeyStore` am Dateiende.
 ///
 /// Beim ersten Start nach dem Umstieg von der Flutter-App werden deren Werte
 /// übernommen: Flutters shared_preferences speichert auf iOS in denselben
@@ -29,11 +31,13 @@ enum AppSettings {
     static let apiKeyBaseUrl = "api_key_base_url"
     static let stoffwindel = "stoffwindel_enabled"
     static let migriert = "migriert_von_flutter"
+    static let keychainMigriert = "api_key_in_keychain"
   }
 
   static func migrationAusfuehren() {
+    apiKeyInKeychainUebernehmen()
     guard !defaults.bool(forKey: Key.migriert) else { return }
-    for key in [Key.mode, Key.apiKey, Key.apiBaseUrl, Key.apiKeyBaseUrl] {
+    for key in [Key.mode, Key.apiBaseUrl, Key.apiKeyBaseUrl] {
       if defaults.object(forKey: key) == nil,
         let wert = defaults.string(forKey: "flutter." + key)
       {
@@ -49,14 +53,32 @@ enum AppSettings {
     defaults.set(true, forKey: Key.migriert)
   }
 
+  /// Holt einen noch im Klartext hinterlegten API-Key einmalig in die Keychain
+  /// und räumt ihn aus den UserDefaults – damit verschwindet er auch aus jedem
+  /// künftigen iCloud-Backup. Eigener Marker, weil `migriert_von_flutter` bei
+  /// Bestandsnutzern längst gesetzt ist und die Übernahme sonst nie liefe.
+  private static func apiKeyInKeychainUebernehmen() {
+    guard !defaults.bool(forKey: Key.keychainMigriert) else { return }
+    let klartext =
+      (defaults.string(forKey: Key.apiKey) ?? defaults.string(forKey: "flutter." + Key.apiKey))?
+      .trimmingCharacters(in: .whitespaces) ?? ""
+    if !klartext.isEmpty {
+      ApiKeyStore.speichere(klartext)
+    }
+    defaults.removeObject(forKey: Key.apiKey)
+    defaults.removeObject(forKey: "flutter." + Key.apiKey)
+    defaults.set(true, forKey: Key.keychainMigriert)
+  }
+
   static var mode: DataSourceMode {
     get { defaults.string(forKey: Key.mode).flatMap(DataSourceMode.init) ?? .demo }
     set { defaults.set(newValue.rawValue, forKey: Key.mode) }
   }
 
+  /// Liegt in der Keychain statt in den UserDefaults – siehe `ApiKeyStore`.
   static var apiKey: String {
-    get { defaults.string(forKey: Key.apiKey) ?? "" }
-    set { defaults.set(newValue.trimmingCharacters(in: .whitespaces), forKey: Key.apiKey) }
+    get { ApiKeyStore.lade() }
+    set { ApiKeyStore.speichere(newValue.trimmingCharacters(in: .whitespaces)) }
   }
 
   /// Basis-URL der mTLS-API; leer, solange keine hinterlegt ist.
@@ -81,5 +103,59 @@ enum AppSettings {
     let url = (defaults.string(forKey: key) ?? "").trimmingCharacters(in: .whitespaces)
     if url.isEmpty { return "" }
     return url.hasSuffix("/") ? url : url + "/"
+  }
+}
+
+/// Der API-Key gehört nicht in die UserDefaults – die landen vollständig in
+/// jedem iCloud-Backup. In der Keychain steuert `kSecAttrAccessible`, wie weit
+/// er mitwandert: `AfterFirstUnlock` ohne `kSecAttrSynchronizable` heißt beim
+/// Direkttransfer auf ein neues Gerät (Quick Start) und im verschlüsselten
+/// Finder-Backup dabei, aus einem iCloud-Backup dagegen nicht
+/// wiederherstellbar. Das ist die iOS-Entsprechung der Android-Trennung
+/// „`<device-transfer>` ja, `<cloud-backup>` nein“; die Uhr legt ihre
+/// übernommene Verbindung in `ServerConnectionStore` mit demselben Attribut ab.
+private enum ApiKeyStore {
+
+  private static let service = "org.dwarftsch.wickel"
+  private static let account = "api-key"
+
+  static func lade() -> String {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+      kSecReturnData as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+    var result: CFTypeRef?
+    guard
+      SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+      let daten = result as? Data
+    else { return "" }
+    return String(data: daten, encoding: .utf8) ?? ""
+  }
+
+  /// Ein leerer Key bedeutet „kein Key hinterlegt“ – dann bleibt auch nichts
+  /// in der Keychain liegen.
+  static func speichere(_ key: String) {
+    loesche()
+    guard !key.isEmpty else { return }
+    let item: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+      kSecValueData as String: Data(key.utf8),
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+    ]
+    SecItemAdd(item as CFDictionary, nil)
+  }
+
+  static func loesche() {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+    ]
+    SecItemDelete(query as CFDictionary)
   }
 }
