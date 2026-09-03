@@ -30,6 +30,8 @@ enum AppSettings {
     static let apiBaseUrl = "api_base_url"
     static let apiKeyBaseUrl = "api_key_base_url"
     static let stoffwindel = "stoffwindel_enabled"
+    static let certBookmark = "cert_folder_bookmark_ios"
+    static let certLabel = "cert_folder_label_ios"
     static let migriert = "migriert_von_flutter"
     static let keychainMigriert = "api_key_in_keychain"
   }
@@ -97,6 +99,19 @@ enum AppSettings {
   static var stoffwindelEnabled: Bool {
     get { defaults.bool(forKey: Key.stoffwindel) }
     set { defaults.set(newValue, forKey: Key.stoffwindel) }
+  }
+
+  /// Security-scoped Bookmark eines frei gewählten Zertifikats-Ordners
+  /// (Base64); leer bedeutet: der App-Ordner in der Dateien-App.
+  static var certFolderBookmark: String {
+    get { defaults.string(forKey: Key.certBookmark) ?? "" }
+    set { defaults.set(newValue, forKey: Key.certBookmark) }
+  }
+
+  /// Anzeigename des gewählten Zertifikats-Ordners.
+  static var certFolderLabel: String {
+    get { defaults.string(forKey: Key.certLabel) ?? "" }
+    set { defaults.set(newValue, forKey: Key.certLabel) }
   }
 
   private static func ladeUrl(_ key: String) -> String {
