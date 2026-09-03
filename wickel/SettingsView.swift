@@ -10,6 +10,9 @@ struct SettingsView: View {
   @State private var apiKey = AppSettings.apiKey
   @State private var apiKeySichtbar = false
   @State private var certsOk = CertSource().sindVorhanden
+  @State private var certOrt = CertSource().locationLabel
+  @State private var eigenerCertOrdner = CertSource().eigenerOrdner
+  @State private var zeigeOrdnerwahl = false
   @State private var meldung: String?
   @State private var infoTitel: String?
   @State private var infoText: String?
@@ -17,6 +20,8 @@ struct SettingsView: View {
   @State private var stoffwindelEnabled = AppSettings.stoffwindelEnabled
   @State private var exportDokument: BackupDokument?
   @State private var zeigeImport = false
+  private let certSource = CertSource()
+
   @FocusState private var urlFokus: Bool
   @FocusState private var keyFokus: Bool
 
@@ -156,31 +161,76 @@ struct SettingsView: View {
     VStack(alignment: .leading, spacing: 12) {
       Sektion("Server (mTLS-API)")
       UrlFeld(wert: $apiUrl, fokus: $urlFokus) { AppSettings.apiBaseUrl = $0 }
+      zertifikatsBlock
+      apiKeyFeld(hilfe: "Erforderlich – die api.php verlangt den Key in jedem Fall.")
+    }
+  }
+
+  /// Status der Client-Zertifikate samt Ordnerwahl. Standard bleibt der
+  /// App-Ordner in der Dateien-App; alternativ lässt sich ein beliebiger
+  /// Ordner auswählen, auf den die App per security-scoped Bookmark
+  /// zugreift – dieselbe Bedienung wie in „Hello Baby“.
+  private var zertifikatsBlock: some View {
+    VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 12) {
         Image(systemName: certsOk ? "checkmark.circle.fill" : "xmark.circle.fill")
           .foregroundStyle(certsOk ? Mh.gruenText : Mh.fehlerText)
         VStack(alignment: .leading, spacing: 2) {
           Text(certsOk ? "Zertifikate gefunden" : "Keine Zertifikate gefunden")
             .font(.nunito(16)).foregroundStyle(Mh.text)
-          Text(
-            "\(CertSource.certFileName) & \(CertSource.keyFileName) per Dateien-App "
-              + "in den Ordner der App „Wickeln“ kopieren")
+          Text("\(CertSource.certFileName) & \(CertSource.keyFileName) – \(certOrt)")
             .font(.nunito(12)).foregroundStyle(Mh.textSekundaer)
+          if !eigenerCertOrdner {
+            Text(
+              "Per Dateien-App in den Ordner der App „Wickeln“ kopieren – oder "
+                + "unten einen eigenen Ordner wählen.")
+              .font(.nunito(12)).foregroundStyle(Mh.textSekundaer)
+          }
         }
       }
-      Button {
-        certsOk = CertSource().sindVorhanden
-        meldung = certsOk ? "Zertifikate gefunden." : "Keine Zertifikate gefunden."
-      } label: {
-        Label("Erneut prüfen", systemImage: "arrow.clockwise")
-          .font(.nunitoBold(15))
-          .foregroundStyle(Mh.gruenText)
-          .padding(.horizontal, 14)
-          .frame(minHeight: 40)
-          .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Mh.rand, lineWidth: 1.5))
+      zertifikatsButton("Zertifikats-Ordner wählen", "folder") { zeigeOrdnerwahl = true }
+      if eigenerCertOrdner {
+        zertifikatsButton("Standard: App-Ordner (Dateien-App)", "folder.badge.gearshape") {
+          certSource.nutzeStandardOrdner()
+          pruefeZertifikate()
+        }
       }
-      apiKeyFeld(hilfe: "Erforderlich – die api.php verlangt den Key in jedem Fall.")
+      zertifikatsButton("Erneut prüfen", "arrow.clockwise") {
+        pruefeZertifikate()
+        meldung = certsOk ? "Zertifikate gefunden." : "Keine Zertifikate gefunden."
+      }
     }
+    // Bewusst hier und nicht am Wurzel-View: dort hängt bereits der Importer
+    // für Backups, und zwei fileImporter am selben View vertragen sich nicht.
+    .fileImporter(isPresented: $zeigeOrdnerwahl, allowedContentTypes: [.folder]) { ergebnis in
+      if case .success(let url) = ergebnis {
+        do {
+          try certSource.uebernehmeOrdner(url: url)
+        } catch {
+          meldung = "Ordner konnte nicht übernommen werden: \(error.localizedDescription)"
+        }
+        pruefeZertifikate()
+      }
+    }
+  }
+
+  private func zertifikatsButton(
+    _ titel: String, _ symbol: String, _ aktion: @escaping () -> Void
+  ) -> some View {
+    Button(action: aktion) {
+      Label(titel, systemImage: symbol)
+        .font(.nunitoBold(15))
+        .foregroundStyle(Mh.gruenText)
+        .padding(.horizontal, 14)
+        .frame(minHeight: 40)
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Mh.rand, lineWidth: 1.5))
+    }
+  }
+
+  private func pruefeZertifikate() {
+    certsOk = certSource.sindVorhanden
+    certOrt = certSource.locationLabel
+    eigenerCertOrdner = certSource.eigenerOrdner
   }
 
   private var backupSektion: some View {
@@ -468,7 +518,11 @@ extension SettingsView {
     iCloud muss er einmal neu eingetragen werden.
 
     Client-Zertifikate (client.crt / client.key) liegen im App-Ordner der \
-    Dateien-App und sind nach einem Gerätewechsel gegebenenfalls neu abzulegen.
+    Dateien-App und sind nach einem Gerätewechsel gegebenenfalls neu abzulegen. \
+    Alternativ lässt sich oben ein beliebiger anderer Ordner auswählen; der \
+    Zugriff darauf wird als Lesezeichen gespeichert. Nach einer \
+    Wiederherstellung auf einem neuen Gerät zeigt das Lesezeichen ins Leere – \
+    die App meldet das und bittet darum, den Ordner erneut auszuwählen.
 
     Unabhängig davon lässt sich hier jederzeit ein eigenes Backup als \
     JSON-Datei sichern und wieder einspielen.
