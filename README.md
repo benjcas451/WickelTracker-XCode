@@ -177,9 +177,16 @@ Verbindung in `ServerConnectionStore` mit demselben Attribut ab.
 
 Client-Zertifikate (`client.crt` / `client.key`) liegen im App-Ordner der
 Dateien-App und sind nach einem Gerätewechsel gegebenenfalls neu abzulegen.
-Damit dieser Ordner dort überhaupt auftaucht, legt `AppOrdner` beim Start
-eine Hinweisdatei an, solange er sonst leer ist – iOS blendet leere
-App-Ordner aus.
+Damit dieser Ordner dort überhaupt auftaucht, hält `AppOrdner` beim Start
+eine Hinweisdatei (`README.txt`) darin vor – iOS blendet App-Ordner ohne
+sichtbare Datei aus. Die Datei wird angelegt, sobald sie fehlt, und
+bewusst **ohne** vorherige Leer-Prüfung: `contentsOfDirectory` zählt auch
+unsichtbare Punkt-Dateien mit, für iOS gilt der Ordner damit trotzdem als
+leer. Genau daran scheiterte der erste Anlauf.
+
+Der Build-Check prüft am gebauten Bundle, dass `UIFileSharingEnabled` und
+`LSSupportsOpeningDocumentsInPlace` wirklich als Boolean in der generierten
+Info.plist stehen, und schlägt sonst fehl.
 
 Alternativ lässt sich unter *Einstellungen → Server (mTLS-API)* ein
 beliebiger anderer Ordner auswählen. Er wird als security-scoped Bookmark
