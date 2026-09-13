@@ -99,6 +99,9 @@ wickel/                          iPhone-App
   WickelService.swift            Protokoll der Datenquellen + Factory
   DemoService.swift              lokale SQLite (sqflite-kompatibel, v2, C-API)
   ApiService.swift               REST-Client (URLSession; api.php + mTLS via Delegate)
+  Netzfehler.swift               Einordnung: nie gesendet vs. mehrdeutig
+  OfflineService.swift           Offline-Hülle, Warteschlange + Lesestand,
+                                 Verbindungswache (NWPathMonitor)
   CloudflareServiceToken.swift   Service-Token-Header + Erkennung der
                                  Access-Abweisung (Redirect auf die Login-Seite)
   ClientIdentity.swift           PEM (crt/key) -> SecIdentity (Keychain)
@@ -138,6 +141,51 @@ folgt dem, sodass eine HTML-Seite mit Status 200 ankommt. `ApiService` und
 als Token-Problem. Die Uhr behandelt den Fall wie „Server nicht erreichbar“
 und weicht auf das iPhone aus: die Anfrage wurde am Rand abgefangen, hat den
 Server also nachweislich nie erreicht.
+
+## Offline-Betrieb
+
+Bricht die Verbindung weg, bleibt die App benutzbar. `OfflineService` legt
+sich dafür über die Server-Quelle (nur in den Server-Modi, nicht im Demo).
+
+**Lesen:** Nach jedem erfolgreichen Laden liegt die Statistik als JSON in
+`Application Support/Offline/`. Scheitert das Laden an einem Netzwerkfehler,
+zeigt die App diesen Stand statt einer Fehlerseite. Ob die Anfrage ankam,
+spielt beim Lesen keine Rolle.
+
+**Schreiben:** Ein Eintrag, der nicht rausging, landet in einer Warteschlange
+und geht raus, sobald die Verbindung steht. Entscheidend ist `Netzfehler`:
+
+| Fall | `URLError` | Verhalten |
+|---|---|---|
+| nie gesendet | kein Netz, DNS, Verbindungsaufbau, TLS | in die Warteschlange |
+| mehrdeutig | Zeitüberschreitung, Abbruch mitten drin | Fehlermeldung wie bisher |
+
+Der Unterschied verhindert Duplikate: Bei einem Abbruch mitten in der
+Übertragung könnte der Server den Eintrag längst haben, ein zweiter Versuch
+legte dann einen zweiten an. Die `api.php` kennt keinen
+Idempotenz-Schlüssel, deshalb bleibt es in diesen Fällen bei der Meldung.
+
+**`undoLast` wird bewusst nicht vorgemerkt.** Wartet noch ein Eintrag, nimmt
+die App ihn direkt aus der Warteschlange — das ist eindeutig der zuletzt
+erfasste. Ist die Warteschlange leer, muss der Server ran; offline meldet das
+einen Fehler, statt die Rücknahme aufzuheben. Grund: Die API kennt für
+`undoLast` keine ID, beim Nachholen träfe es womöglich einen Eintrag, den
+jemand anders inzwischen angelegt hat.
+
+**Statistik.** Wartende Einträge erhöhen die Gesamtzahlen der Zeiträume und
+setzen den „letzten Eintrag“ — genau das, was die App im Vordergrund zeigt.
+Die Prozentanteile bleiben, wie der Server sie gemeldet hat: Sie liessen sich
+nur aus Rohdaten neu berechnen, die die API nicht liefert.
+
+**Abgearbeitet** wird vor jedem Laden, beim Zurückkehren aus dem Hintergrund
+und sobald `NWPathMonitor` wieder einen Pfad meldet. Beim ersten
+Verbindungsfehler bricht der Durchlauf ab, der Rest bleibt in der
+Reihenfolge stehen. Vom Server inhaltlich zurückgewiesene Einträge fliegen
+raus und werden einmal gemeldet.
+
+Die Ablage hängt am Zugang (Modus + Basis-URL). Die Uhr bleibt aussen vor:
+sie führt eine eigene Outbox und bekäme sonst ein „erledigt“ gemeldet,
+während der Eintrag noch beim iPhone liegt.
 
 ## Watch-Protokoll (WatchConnectivity)
 

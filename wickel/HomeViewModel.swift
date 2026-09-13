@@ -17,12 +17,17 @@ final class HomeViewModel: ObservableObject {
   /// Kurzmeldungen (Fehler bei Aktionen, Backup-Ergebnisse).
   @Published var meldung: String?
 
-  private var service: WickelService = createConfiguredWickelService()
-  private var beobachter: AnyCancellable?
+  /// Grund der abgebrochenen Verbindung; nil heisst „online“.
+  @Published var offlineGrund: String?
+  /// Anzahl der Einträge, die noch auf Übertragung warten.
+  @Published var ausstehend = 0
+
+  private var service: WickelService = createConfiguredWickelService(offlineFaehig: true)
+  private var beobachter: Set<AnyCancellable> = []
 
   init() {
     // Übernommene Watch-Einträge lösen ein Neuladen aus.
-    beobachter = NotificationCenter.default
+    NotificationCenter.default
       .publisher(for: .wickelWatchAenderung)
       .receive(on: DispatchQueue.main)
       .sink { [weak self] mitteilung in
@@ -34,12 +39,28 @@ final class HomeViewModel: ObservableObject {
         }
         self?.aktualisieren()
       }
+      .store(in: &beobachter)
+
+    // Den Offline-Zustand übernehmen, statt ihn doppelt zu führen.
+    let status = OfflineStatus.shared
+    status.$grund.assign(to: &$offlineGrund)
+    status.$ausstehend.assign(to: &$ausstehend)
+
+    // Sobald wieder ein Netzwerkpfad da ist, die Warteschlange abarbeiten –
+    // ohne dass der Nutzer etwas antippen muss.
+    Verbindungswache.shared.wiederVerbunden
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] in self?.aktualisieren() }
+      .store(in: &beobachter)
   }
 
   /// Baut die Datenquelle anhand der Einstellung neu auf (z. B. nach dem
   /// Verlassen der Einstellungen) und lädt anschließend neu.
   func datenquelleNeuAufbauen() {
-    service = createConfiguredWickelService()
+    // Der Hinweis des alten Zugangs darf nicht über dem neuen stehen bleiben;
+    // die neue Datenquelle meldet ihren eigenen Stand sofort nach.
+    OfflineStatus.shared.zuruecksetzen()
+    service = createConfiguredWickelService(offlineFaehig: true)
     stoffwindelEnabled = AppSettings.stoffwindelEnabled
     aktualisieren()
     // Liegengebliebene Watch-Einträge mit der (neuen) Quelle verarbeiten.
@@ -50,6 +71,9 @@ final class HomeViewModel: ObservableObject {
     laedt = true
     fehler = nil
     Task {
+      // Erst das Liegengebliebene loswerden, dann laden: sonst zeigte die
+      // Statistik einen Serverstand ohne die eigenen Einträge.
+      await warteschlangeAbarbeiten()
       do {
         let neu = try await service.getStats()
         stats = neu
@@ -76,6 +100,17 @@ final class HomeViewModel: ObservableObject {
       let entfernt = try await service.undoLast()
       meldung = entfernt ? "Letzter Eintrag gelöscht" : "Kein Eintrag vorhanden"
     }
+  }
+
+  /// Schickt die offenen Einträge zum Server. Verworfene (vom Server
+  /// inhaltlich zurückgewiesene) meldet sie einmal gesammelt.
+  private func warteschlangeAbarbeiten() async {
+    guard let offline = service as? OfflineService else { return }
+    let verworfen = await offline.nachholen()
+    guard !verworfen.isEmpty else { return }
+    meldung = verworfen.count == 1
+      ? "Ein wartender Eintrag wurde vom Server abgelehnt: \(verworfen[0])"
+      : "\(verworfen.count) wartende Einträge wurden vom Server abgelehnt."
   }
 
   /// Führt eine schreibende Aktion aus und lädt danach neu.

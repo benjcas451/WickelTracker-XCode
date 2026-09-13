@@ -118,7 +118,10 @@ final class ApiService: NSObject, WickelService {
     do {
       (data, response) = try await session.data(for: request)
     } catch {
-      throw ServiceError(message: error.localizedDescription)
+      // Den URLError-Code festhalten: daran hängt, ob die Aktion in die
+      // Offline-Warteschlange darf oder ob sie schon ausgeführt sein könnte.
+      throw ServiceError(
+        message: Netzfehler.meldung(error), netzfehler: Netzfehler.aus(error))
     }
 
     guard let http = response as? HTTPURLResponse else {
