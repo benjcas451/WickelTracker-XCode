@@ -5,7 +5,8 @@ import Security
 ///
 /// Authentifizierung:
 ///  - mTLS-Client-Zertifikat über [certSource] (Transport-Ebene), und/oder
-///  - API-Key über den Header `X-API-Key` ([apiKey]).
+///  - API-Key über den Header `X-API-Key` ([apiKey]), und/oder
+///  - Cloudflare-Access-Service-Token ([cfToken]).
 ///
 /// Die api.php verlangt den API-Key in jedem Fall – auch hinter mTLS.
 /// Endpunkte und JSON-Felder identisch zur Flutter-/Android-App.
@@ -13,6 +14,7 @@ final class ApiService: NSObject, WickelService {
 
   private let baseURL: String
   private let apiKey: String?
+  private let cfToken: CloudflareServiceToken?
   private let certSource: CertSource?
   // Wird beim ersten Request gesetzt; parallele Erst-Requests erzeugen die
   // Identity schlimmstenfalls doppelt (idempotent, gleicher Keychain-Eintrag).
@@ -22,10 +24,14 @@ final class ApiService: NSObject, WickelService {
   // lazy wäre bei parallelen Erst-Requests nicht threadsicher.
   nonisolated(unsafe) private var session: URLSession!
 
-  init(baseURL: String, certSource: CertSource? = nil, apiKey: String? = nil) {
+  init(
+    baseURL: String, certSource: CertSource? = nil, apiKey: String? = nil,
+    cfToken: CloudflareServiceToken? = nil
+  ) {
     self.baseURL = baseURL
     self.certSource = certSource
     self.apiKey = apiKey
+    self.cfToken = cfToken
     super.init()
     let configuration = URLSessionConfiguration.ephemeral
     configuration.timeoutIntervalForRequest = 20
@@ -101,6 +107,7 @@ final class ApiService: NSObject, WickelService {
     if let apiKey, !apiKey.isEmpty {
       request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
     }
+    if let cfToken { cfToken.anwenden(auf: &request) }
     if let body {
       request.setValue("application/json", forHTTPHeaderField: "Content-Type")
       request.httpBody = try? JSONSerialization.data(withJSONObject: body)
@@ -111,11 +118,17 @@ final class ApiService: NSObject, WickelService {
     do {
       (data, response) = try await session.data(for: request)
     } catch {
-      throw ServiceError(message: error.localizedDescription)
+      // Den URLError-Code festhalten: daran hängt, ob die Aktion in die
+      // Offline-Warteschlange darf oder ob sie schon ausgeführt sein könnte.
+      throw ServiceError(
+        message: Netzfehler.meldung(error), netzfehler: Netzfehler.aus(error))
     }
 
     guard let http = response as? HTTPURLResponse else {
       throw ServiceError(message: "Unerwartete Antwort des Servers.")
+    }
+    if let hinweis = CloudflareServiceToken.abweisung(http) {
+      throw ServiceError(message: hinweis, statusCode: http.statusCode)
     }
     guard (200..<300).contains(http.statusCode) else {
       throw ServiceError(
