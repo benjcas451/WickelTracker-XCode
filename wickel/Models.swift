@@ -3,7 +3,7 @@ import Foundation
 /// Art des Wickel-Eintrags. `apiValue` ist exakt der String, den die API
 /// erwartet bzw. liefert (urin, stuhlgang, beides). Die Farbzuordnung
 /// (Honig/Grau/Flieder) liegt im Theme (Theme.swift).
-enum WickelType: String, CaseIterable, Identifiable {
+enum WickelType: String, CaseIterable, Identifiable, Codable {
   case urin
   case stuhlgang
   case beides
@@ -35,7 +35,7 @@ enum WickelType: String, CaseIterable, Identifiable {
 
 /// Statistik eines Zeitraums: Gesamtzahl + Prozentanteil je Typ
 /// (so liefert es `GET api.php?action=stats`).
-struct PeriodStats: Equatable {
+struct PeriodStats: Equatable, Codable {
   var total = 0
   var urinPct = 0
   var stuhlgangPct = 0
@@ -54,7 +54,7 @@ struct PeriodStats: Equatable {
 }
 
 /// Letzter Eintrag (Typ + Zeitpunkt) oder „keiner“.
-struct LastEntry: Equatable {
+struct LastEntry: Equatable, Codable {
   var type: WickelType?
   var time: Date?
   var stoffwindel = false
@@ -64,7 +64,7 @@ struct LastEntry: Equatable {
 
 /// Vollständige Statistik-Antwort (`action=stats`): Zeiträume heute / Woche /
 /// 3 Wochen / Monat plus letzter Eintrag.
-struct WickelStats: Equatable {
+struct WickelStats: Equatable, Codable {
   var today = PeriodStats.leer
   var week = PeriodStats.leer
   var threeWeeks = PeriodStats.leer

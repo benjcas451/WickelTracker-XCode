@@ -200,6 +200,11 @@ final class WatchStore: NSObject, ObservableObject {
         // keinesfalls der Eintrag erneut entstehen.
         let snapshot = try? await api.stats()
         self.confirmDirect(entry, type: type, snapshot: snapshot)
+      } catch DirectApiError.accessAbgewiesen(let grund) {
+        // Am Rand abgefangen, der Server hat die Anfrage nie gesehen — der
+        // Umweg über das iPhone ist damit genauso gefahrlos wie bei
+        // .unreachable.
+        self.redirectToPhone(entry, notice: grund)
       } catch DirectApiError.unreachable {
         // Der Server war gar nicht erreichbar — nichts wurde gesendet, also
         // ist der Umweg über das iPhone gefahrlos.
@@ -225,7 +230,10 @@ final class WatchStore: NSObject, ObservableObject {
     errorMessage = nil
   }
 
-  private func redirectToPhone(_ entry: OutboxEntry) {
+  private func redirectToPhone(
+    _ entry: OutboxEntry,
+    notice hinweis: String = "Server nicht direkt erreichbar — über das iPhone gemeldet."
+  ) {
     guard let index = outbox.firstIndex(where: { $0.id == entry.id }) else { return }
     let relayed = OutboxEntry(
       id: entry.id, type: entry.type, time: entry.time,
@@ -233,7 +241,7 @@ final class WatchStore: NSObject, ObservableObject {
     outbox[index] = relayed
     saveOutbox()
     transmit(relayed)
-    notice = "Server nicht direkt erreichbar — über das iPhone gemeldet."
+    notice = hinweis
   }
 
   /// Der Server hat geantwortet (oder die Übertragung brach mittendrin ab):
