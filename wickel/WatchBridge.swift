@@ -198,9 +198,10 @@ final class WatchBridge: NSObject, @unchecked Sendable {
 
   /// Überträgt die eingerichtete Server-Verbindung an die Watch, damit diese
   /// anschließend direkt mit dem Server sprechen kann. Bei der lokalen
-  /// SQLite-Quelle gibt es nichts zu übernehmen. Der API-Key geht in beiden
+  /// SQLite-Quelle gibt es nichts zu übernehmen. Der API-Key geht in allen
   /// Server-Modi mit, weil die api.php ihn stets verlangt; bei mTLS kommen
-  /// Zertifikat und privater Schlüssel als PEM (base64-kodiert) dazu.
+  /// Zertifikat und privater Schlüssel als PEM (base64-kodiert) dazu, im
+  /// Cloudflare-Modus die beiden Hälften des Service Tokens.
   private func verbindung() throws -> [String: Any] {
     switch AppSettings.mode {
     case .demo:
@@ -212,6 +213,23 @@ final class WatchBridge: NSObject, @unchecked Sendable {
         throw ServiceError(message: "Auf dem iPhone ist keine API-URL hinterlegt.")
       }
       return ["mode": "apiKey", "base_url": baseUrl, "api_key": AppSettings.apiKey]
+
+    case .cloudflare:
+      let baseUrl = AppSettings.cloudflareBaseUrl
+      guard !baseUrl.isEmpty else {
+        throw ServiceError(message: "Auf dem iPhone ist keine API-URL hinterlegt.")
+      }
+      guard AppSettings.cfServiceTokenVollstaendig else {
+        throw ServiceError(
+          message: "Auf dem iPhone ist kein vollständiges Service Token hinterlegt.")
+      }
+      return [
+        "mode": "cloudflare",
+        "base_url": baseUrl,
+        "api_key": AppSettings.apiKey,
+        "cf_access_client_id": AppSettings.cfAccessClientId,
+        "cf_access_client_secret": AppSettings.cfAccessClientSecret,
+      ]
 
     case .api:
       let baseUrl = AppSettings.apiBaseUrl

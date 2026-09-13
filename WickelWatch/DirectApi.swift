@@ -9,11 +9,17 @@ enum DirectApiError: LocalizedError {
   /// unbrauchbar. Hier darf **nicht** über das iPhone wiederholt werden: die
   /// Anfrage könnte bereits ausgeführt worden sein.
   case response(String)
+  /// Cloudflare Access hat die Anfrage am Rand abgefangen — sie hat den
+  /// eigentlichen Server also nie erreicht. Der Umweg über das iPhone ist
+  /// gefahrlos und oft sogar erfolgreich, etwa wenn die Uhr noch ein
+  /// abgelaufenes Token hält und das iPhone längst ein neues hat.
+  case accessAbgewiesen(String)
 
   var errorDescription: String? {
     switch self {
     case .unreachable(let text): return text
     case .response(let text): return text
+    case .accessAbgewiesen(let text): return text
     }
   }
 }
@@ -137,6 +143,10 @@ final class DirectApi: NSObject, Sendable {
     if let apiKey = connection.apiKey {
       request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
     }
+    if let id = connection.cfAccessClientId, let secret = connection.cfAccessClientSecret {
+      request.setValue(id, forHTTPHeaderField: "CF-Access-Client-Id")
+      request.setValue(secret, forHTTPHeaderField: "CF-Access-Client-Secret")
+    }
     if let body {
       request.setValue("application/json", forHTTPHeaderField: "Content-Type")
       request.httpBody = try? JSONSerialization.data(withJSONObject: body)
@@ -152,6 +162,9 @@ final class DirectApi: NSObject, Sendable {
 
     guard let http = response as? HTTPURLResponse else {
       throw DirectApiError.response("Unerwartete Antwort des Servers.")
+    }
+    if let hinweis = DirectApi.accessAbweisung(http) {
+      throw DirectApiError.accessAbgewiesen(hinweis)
     }
     guard (200..<300).contains(http.statusCode) else {
       throw DirectApiError.response("Fehler \(http.statusCode): \(DirectApi.message(from: data))")
@@ -181,6 +194,26 @@ final class DirectApi: NSObject, Sendable {
     default:
       return .response(urlError.localizedDescription)
     }
+  }
+
+  /// Erkennt, dass Cloudflare Access die Anfrage abgefangen hat.
+  ///
+  /// Ohne gültiges Token leitet Access auf die Login-Seite des Teams um.
+  /// URLSession folgt dem automatisch, sodass am Ende eine HTML-Seite mit
+  /// Status 200 ankommt — ohne diese Prüfung meldete die Uhr dafür nur
+  /// „Unerwartete Antwort des Servers“. Erkennbar am Host der finalen
+  /// Antwort: Access leitet immer auf eine Subdomain von
+  /// `cloudflareaccess.com`.
+  private static func accessAbweisung(_ response: HTTPURLResponse) -> String? {
+    if let host = response.url?.host?.lowercased(),
+      host == "cloudflareaccess.com" || host.hasSuffix(".cloudflareaccess.com")
+    {
+      return "Cloudflare Access hat die Uhr abgewiesen — über das iPhone gemeldet."
+    }
+    if response.statusCode == 403, response.value(forHTTPHeaderField: "cf-ray") != nil {
+      return "Cloudflare Access hat den Zugriff verweigert — über das iPhone gemeldet."
+    }
+    return nil
   }
 
   /// Zieht `{"error": "..."}` heraus bzw. kürzt eine HTML-Fehlerseite.

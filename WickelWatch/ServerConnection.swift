@@ -12,11 +12,23 @@ struct ServerConnection: Codable {
   let clientCertPEM: Data?
   /// PEM-Bytes des privaten Schlüssels; nil im reinen API-Key-Modus.
   let clientKeyPEM: Data?
+  /// Client-ID des Cloudflare Service Tokens; nil ausserhalb des
+  /// Cloudflare-Modus. Bei Verbindungen, die vor 2.1.0 übernommen wurden,
+  /// fehlt das Feld in der Ablage und wird zu nil decodiert.
+  let cfAccessClientId: String?
+  /// Client-Secret des Cloudflare Service Tokens; nil ausserhalb des Modus.
+  let cfAccessClientSecret: String?
 
   var isMutualTLS: Bool { clientCertPEM != nil && clientKeyPEM != nil }
 
+  /// Läuft die Verbindung über ein Cloudflare Service Token?
+  var isCloudflare: Bool { cfAccessClientId != nil && cfAccessClientSecret != nil }
+
   /// Kurzbeschreibung für die Statusanzeige auf der Uhr.
-  var label: String { isMutualTLS ? "Direkt · mTLS" : "Direkt · API-Key" }
+  var label: String {
+    if isCloudflare { return "Direkt · Cloudflare" }
+    return isMutualTLS ? "Direkt · mTLS" : "Direkt · API-Key"
+  }
 }
 
 extension ServerConnection {
@@ -32,7 +44,20 @@ extension ServerConnection {
     switch reply["mode"] as? String {
     case "apiKey":
       guard let key else { return nil }
-      self.init(baseURL: normalized, apiKey: key, clientCertPEM: nil, clientKeyPEM: nil)
+      self.init(
+        baseURL: normalized, apiKey: key, clientCertPEM: nil, clientKeyPEM: nil,
+        cfAccessClientId: nil, cfAccessClientSecret: nil)
+
+    case "cloudflare":
+      // Ein halbes Service Token ist so gut wie keines — dann lieber weiter
+      // über das iPhone, statt am Rand abgewiesen zu werden.
+      guard
+        let id = reply["cf_access_client_id"] as? String, !id.isEmpty,
+        let secret = reply["cf_access_client_secret"] as? String, !secret.isEmpty
+      else { return nil }
+      self.init(
+        baseURL: normalized, apiKey: key, clientCertPEM: nil, clientKeyPEM: nil,
+        cfAccessClientId: id, cfAccessClientSecret: secret)
 
     case "api":
       guard
@@ -41,7 +66,9 @@ extension ServerConnection {
         let cert = Data(base64Encoded: certText),
         let privateKey = Data(base64Encoded: keyText)
       else { return nil }
-      self.init(baseURL: normalized, apiKey: key, clientCertPEM: cert, clientKeyPEM: privateKey)
+      self.init(
+        baseURL: normalized, apiKey: key, clientCertPEM: cert, clientKeyPEM: privateKey,
+        cfAccessClientId: nil, cfAccessClientSecret: nil)
 
     default:
       return nil

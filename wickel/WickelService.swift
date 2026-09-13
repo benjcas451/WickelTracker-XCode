@@ -9,7 +9,8 @@ struct ServiceError: LocalizedError {
 }
 
 /// Gemeinsame Schnittstelle für Wickel-Quellen: die Server-API ([ApiService],
-/// mTLS und/oder API-Key) oder die lokale SQLite-Datenbank ([DemoService]).
+/// mTLS, API-Key und/oder Cloudflare Service Token) oder die lokale
+/// SQLite-Datenbank ([DemoService]).
 /// Sendable, damit die Dienste zwischen MainActor (UI) und Hintergrund-Tasks
 /// wandern dürfen.
 protocol WickelService: Sendable {
@@ -37,6 +38,12 @@ func createConfiguredWickelService() -> WickelService {
     ApiService(baseURL: AppSettings.apiBaseUrl, certSource: CertSource(), apiKey: AppSettings.apiKey)
   case .apiKey:
     ApiService(baseURL: AppSettings.apiKeyBaseUrl, apiKey: AppSettings.apiKey)
+  case .cloudflare:
+    // Cloudflare Access sichert den Zugang am Rand; der API-Key geht wie in
+    // den anderen Server-Modi mit — die api.php verlangt ihn auch dort.
+    ApiService(
+      baseURL: AppSettings.cloudflareBaseUrl, apiKey: AppSettings.apiKey,
+      cfToken: .ausEinstellungen)
   case .demo:
     DemoService.shared
   }
