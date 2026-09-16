@@ -212,7 +212,7 @@ struct SettingsView: View {
             .font(.nunito(12)).foregroundStyle(Mh.textSekundaer)
           if !eigenerCertOrdner {
             Text(
-              "Per Dateien-App in den Ordner der App „Wickeln“ kopieren – oder "
+              "Per Dateien-App in den Ordner der App „Windel-Tracker“ kopieren – oder "
                 + "unten einen eigenen Ordner wählen.")
               .font(.nunito(12)).foregroundStyle(Mh.textSekundaer)
           }
