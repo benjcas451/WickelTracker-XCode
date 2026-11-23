@@ -28,6 +28,8 @@ struct HomeView: View {
           } label: {
             Image(systemName: "gearshape").foregroundStyle(Mh.gruenText)
           }
+          .accessibilityLabel("Einstellungen")
+          .accessibilityIdentifier("einstellungen")
         }
       }
       .sheet(isPresented: $zeigeEinstellungen, onDismiss: model.datenquelleNeuAufbauen) {
@@ -132,6 +134,7 @@ struct HomeView: View {
           .frame(maxWidth: .infinity)
         }
         .buttonStyle(MhButtonStil(flaeche: type.buttonFlaeche, text: type.buttonText))
+        .accessibilityIdentifier("eintrag-\(type.rawValue)")
       }
     }
   }

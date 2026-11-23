@@ -7,6 +7,10 @@ struct WickelApp: App {
   init() {
     NunitoFont.registrieren()
     AppSettings.migrationAusfuehren()
+    #if DEBUG
+      // Nur UI-Test „Bildschirmfotos“: erfundene Einträge im Lokal-Modus.
+      Bildschirmfotos.testdatenEinspielen()
+    #endif
     // Ohne mindestens eine Datei blendet iOS den App-Ordner in der
     // „Dateien“-App aus – dort liegen aber client.crt/client.key.
     AppOrdner.sichtbarMachen()
