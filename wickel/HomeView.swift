@@ -38,6 +38,10 @@ struct HomeView: View {
     }
     .refreshable { model.aktualisieren() }
     .background(Mh.bg.ignoresSafeArea())
+    // Grund unter der Statusleiste: gescrollter Inhalt verschwindet darunter.
+    .safeAreaInset(edge: .top, spacing: 0) {
+      Color.clear.frame(height: 0).background(Mh.bg, ignoresSafeAreaEdges: .top)
+    }
     .overlay(alignment: .bottom) {
       if let rueckmeldung = model.rueckmeldung {
         MhToast(text: rueckmeldung.text)
@@ -155,7 +159,8 @@ struct HomeView: View {
 
 // MARK: - Letzter Eintrag
 
-/// Zwischen zwei Haarlinien: Typ mit Punkt links, Zeit rechts.
+/// Zwischen zwei Haarlinien: oben Bezeichnung und Zeit, darunter der Typ
+/// mit Punkt. Reicht die Breite nicht (große Schrift), stapelt sich alles.
 private struct LetzterEintrag: View {
   let last: LastEntry
   let stoffwindelEnabled: Bool
@@ -163,40 +168,73 @@ private struct LetzterEintrag: View {
   var body: some View {
     VStack(spacing: 0) {
       MhTrennlinie()
-      HStack(alignment: .bottom, spacing: Mh.abstand3) {
-        VStack(alignment: .leading, spacing: Mh.abstand1) {
-          Text("Letzter Eintrag").mhText(.label).foregroundStyle(Mh.textSecondary)
-          if let typ = last.type {
-            HStack(spacing: 10) {
-              WickelPunkt(typ: typ)
-              Text(typ.label)
-                .font(.custom(MhSchrift.medium, size: 16, relativeTo: .body))
-                .foregroundStyle(Mh.textStrong)
-              if stoffwindelEnabled && last.stoffwindel {
-                MhMarke("Stoffwindel")
-              }
-            }
-          } else {
-            Text("Noch kein Eintrag").mhText(.body).foregroundStyle(Mh.textSecondary)
+      VStack(alignment: .leading, spacing: Mh.abstand1) {
+        ViewThatFits(in: .horizontal) {
+          HStack(alignment: .firstTextBaseline, spacing: Mh.abstand3) {
+            bezeichnung
+            Spacer(minLength: 0)
+            zeit
+          }
+          VStack(alignment: .leading, spacing: 2) {
+            bezeichnung
+            zeit
           }
         }
-        Spacer(minLength: 0)
-        if last.type != nil, let zeit = last.time {
-          // Die „vor …“-Angabe läuft weiter, ohne neu zu laden.
-          TimelineView(.periodic(from: .now, by: 30)) { kontext in
-            Text("\(zeit.relativ(bis: kontext.date)) · \(zeit.zeitpunktLabel)")
-              .mhText(.small)
-              .monospacedDigit()
-              .foregroundStyle(Mh.textSecondary)
-              .multilineTextAlignment(.trailing)
+        if let typ = last.type {
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+              typZeile(typ)
+              marke
+            }
+            VStack(alignment: .leading, spacing: Mh.abstand1) {
+              typZeile(typ)
+              marke
+            }
           }
+        } else {
+          Text("Noch kein Eintrag").mhText(.body).foregroundStyle(Mh.textSecondary)
         }
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.vertical, Mh.abstand4)
       .accessibilityElement(children: .combine)
       MhTrennlinie()
     }
     .padding(.top, Mh.abstand6)
+  }
+
+  private var bezeichnung: some View {
+    Text("Letzter Eintrag").mhText(.label).foregroundStyle(Mh.textSecondary)
+  }
+
+  /// „vor 42 Min. · 11:58 Uhr“; läuft weiter, ohne neu zu laden.
+  @ViewBuilder
+  private var zeit: some View {
+    if last.type != nil, let zeitpunkt = last.time {
+      TimelineView(.periodic(from: .now, by: 30)) { kontext in
+        Text("\(zeitpunkt.relativ(bis: kontext.date)) · \(zeitpunkt.zeitpunktLabel)")
+          .mhText(.small)
+          .monospacedDigit()
+          .foregroundStyle(Mh.textSecondary)
+      }
+    }
+  }
+
+  private func typZeile(_ typ: WickelType) -> some View {
+    HStack(spacing: 10) {
+      WickelPunkt(typ: typ)
+      Text(typ.label)
+        .font(.custom(MhSchrift.medium, size: 16, relativeTo: .body))
+        .foregroundStyle(Mh.textStrong)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  @ViewBuilder
+  private var marke: some View {
+    if stoffwindelEnabled && last.stoffwindel {
+      MhMarke("Stoffwindel").fixedSize()
+    }
   }
 }
 

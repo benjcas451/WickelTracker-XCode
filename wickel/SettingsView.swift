@@ -37,8 +37,9 @@ struct SettingsView: View {
         MhKopf("Einstellungen") {
           EmptyView()
         } hauptaktion: {
+          // Volle Höhe (44 pt): die kleine Variante hätte nur 36 pt Tippfläche.
           Button("Fertig") { dismiss() }
-            .buttonStyle(MhHauptButtonStil(klein: true))
+            .buttonStyle(.mhHaupt)
         }
         datenquelle
         if mode == .apiKey { apiKeySektion }

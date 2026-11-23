@@ -48,6 +48,14 @@ struct WickelEintragZeile: View {
   let typ: WickelType
   let aktion: () -> Void
 
+  /// Das „+“ wächst mit der Schrift (Dynamic Type).
+  @ScaledMetric(relativeTo: .body) private var plusGroesse: CGFloat = Mh.symbol
+
+  init(typ: WickelType, aktion: @escaping () -> Void) {
+    self.typ = typ
+    self.aktion = aktion
+  }
+
   var body: some View {
     Button(action: aktion) {
       HStack(spacing: Mh.abstand3) {
@@ -57,7 +65,7 @@ struct WickelEintragZeile: View {
           .foregroundStyle(Mh.textStrong)
           .multilineTextAlignment(.leading)
         Spacer(minLength: Mh.abstand2)
-        MhSymbol("MhPlus").foregroundStyle(Mh.primary)
+        MhSymbol("MhPlus", groesse: plusGroesse).foregroundStyle(Mh.primary)
       }
       .padding(.horizontal, Mh.abstand4)
       .padding(.vertical, Mh.abstand2)
