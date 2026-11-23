@@ -111,15 +111,20 @@ wickel/                          iPhone-App
   AppSettings.swift              UserDefaults + Flutter-Migration (inkl. Bool)
   LocalBackupService.swift       JSON-Backup (Format kompatibel zu Android/Flutter)
   WatchBridge.swift              Warteschlange+Ack der Uhr, Snapshot-Push, getConnection
-  Theme.swift                    Minze-&-Honig-Tokens, Nunito, Bausteine
+  MhTheme.swift                  Minze & Honig 2.0: Rollen hell/dunkel, Figtree, Maße
+  MhBausteine.swift              Bausteine des Guides (Kopf, Buttons, Listen, Hinweise …)
+  WickelDarstellung.swift        Wickel-Typen: Reihenfolge, Datenfarben, Eintrags-Zeile,
+                                 Statistik-Zeile, Toast, Zeitangaben
+  Bildschirmfotos.swift          nur Debug: erfundene Testdaten für den UI-Test
   HomeView/HomeViewModel/SettingsView.swift   UI
 WickelWatch/                     watchOS-App (aus der Flutter-Ära 1:1 übernommen,
-                                 in Minze & Honig restylt)
+                                 in Minze & Honig 2.0: nur Farben + Schrift)
   WatchStore.swift               Outbox (UUID-dedupliziert), Snapshot-Spiegel, Direktbetrieb
   DirectApi.swift                REST-Client der Uhr (inkl. mTLS)
   ServerConnection.swift         übernommene Verbindung + Persistenz
   ClientIdentity.swift           PEM -> SecIdentity (watchOS)
-  WickelType.swift               Typen + Minze-&-Honig-Farben
+  MhUhr.swift                    dunkle 2.0-Rollen + Figtree (ohne UIKit)
+  WickelType.swift               Typen + Datenfarben
   ContentView.swift              UI
 ```
 
@@ -276,16 +281,26 @@ auszuwählen.
 
 Unabhängig davon gibt es das manuelle Backup unter *Einstellungen → Backup*.
 
-## Design-System „Minze & Honig“ (v1.0)
+## Design-System „Minze & Honig“ (v2.0)
 
-Quelle der Wahrheit im Code: `wickel/Theme.swift` (iPhone) und
-`WickelWatch/WickelType.swift` (Uhr). Kernregeln wie in den
-Schwester-Repos (Weiß dominiert, Skalen 50–900, Pastell 300 nie als Text
-auf Weiß, Nunito eingebettet, Radien 8/12/16/24/Pill).
+Quelle der Wahrheit im Code: `wickel/MhTheme.swift` (Rollen aus
+`DesignGuide/tokens/design-tokens.json`, hell/dunkel nach System) und
+`WickelWatch/MhUhr.swift` (Uhr, nur dunkle Rollen). Komponenten benutzen nur
+Rollen, nie Skalenwerte. Farbe ist Signal, keine Fläche; höchstens eine
+Hauptaktion je Ansicht; Haarlinien statt Karten mit Schatten. Schrift
+Figtree 400/500/600 (`wickel/Fonts`, `WickelWatch/Fonts`, Lizenz in
+`licenses/Figtree-OFL.txt`), eigene Liniensymbole `Mh*` in
+`Assets.xcassets` statt Emojis und SF Symbols.
 
-**Wickel-Typen (Chip-Muster, plattformübergreifend identisch):**
-Urin = Honig, Stuhlgang = Grau, Beides = Flieder; die
-**Stoffwindel-Funktion trägt Minze**.
+**Wickel-Typen (wie auf der Webseite):** Urin = data2 (Honig),
+Urin + Stuhlgang = halber Punkt data2/data1, Nur Stuhlgang = data3
+(Flieder) – nur als 10-pt-Punkt oder 4-pt-Balken, immer mit Text.
+
+**Bildschirmfotos:** Workflow `screenshots.yml` (Push auf `claude/**` oder
+von Hand) startet den UI-Test `ScreenshotTests` im Simulator, hell/dunkel
+mit normaler und großer Schrift, und legt die Bilder als Artefakt
+„bildschirmfotos“ ab. Die App läuft dabei im Debug-Build im Modus „Lokal
+(SQLite)“ mit erfundenen Einträgen.
 
 ## Sicherheit / was nie ins Repo darf
 

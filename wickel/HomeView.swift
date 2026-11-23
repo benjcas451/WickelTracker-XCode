@@ -3,59 +3,81 @@ import SwiftUI
 struct HomeView: View {
   @StateObject private var model = HomeViewModel()
   @Environment(\.scenePhase) private var szenenPhase
+  @Environment(\.accessibilityReduceMotion) private var wenigerBewegung
 
   @State private var zeigeEinstellungen = false
   @State private var zeigeUndoNachfrage = false
 
   var body: some View {
-    NavigationStack {
-      ZStack {
-        Mh.grund.ignoresSafeArea()
-        inhalt
-      }
-      .navigationTitle("")
-      .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 0) {
+        // Kopf in jedem Zustand, damit die Einstellungen auch bei einem
+        // Ladefehler erreichbar bleiben.
+        MhKopf("Wickel-Tracker") {
+          MhSymbolButton("MhRefresh", beschreibung: "Aktualisieren") {
             model.aktualisieren()
-          } label: {
-            Image(systemName: "arrow.clockwise").foregroundStyle(Mh.gruenText)
           }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-          Button {
+          MhSymbolButton("MhSliders", beschreibung: "Einstellungen") {
             zeigeEinstellungen = true
-          } label: {
-            Image(systemName: "gearshape").foregroundStyle(Mh.gruenText)
           }
-          .accessibilityLabel("Einstellungen")
           .accessibilityIdentifier("einstellungen")
         }
+        // Offline-Hinweis gleich unter dem Titel: man kann weiterarbeiten,
+        // der Stand ist aber noch nicht beim Server.
+        if model.offlineGrund != nil || model.ausstehend > 0 {
+          OfflineHinweis(grund: model.offlineGrund, ausstehend: model.ausstehend)
+            .padding(.bottom, Mh.abstand4)
+        }
+        inhalt
       }
-      .sheet(isPresented: $zeigeEinstellungen, onDismiss: model.datenquelleNeuAufbauen) {
-        SettingsView()
+      .padding(.horizontal, Mh.rand)
+      .padding(.top, Mh.abstand2)
+      .padding(.bottom, Mh.abstand12)
+      .frame(maxWidth: 640)
+      .frame(maxWidth: .infinity)
+    }
+    .refreshable { model.aktualisieren() }
+    .background(Mh.bg.ignoresSafeArea())
+    .overlay(alignment: .bottom) {
+      if let rueckmeldung = model.rueckmeldung {
+        MhToast(text: rueckmeldung.text)
+          .id(rueckmeldung.id)
+          .transition(
+            wenigerBewegung
+              ? AnyTransition.opacity
+              : AnyTransition.move(edge: .bottom).combined(with: .opacity))
+          .onTapGesture { model.rueckmeldung = nil }
       }
-      .alert("Letzten Eintrag löschen?", isPresented: $zeigeUndoNachfrage) {
-        Button("Abbrechen", role: .cancel) {}
-        Button("Löschen", role: .destructive) { model.letztenRueckgaengig() }
-      } message: {
-        Text("Der zuletzt angelegte Wickel-Eintrag wird entfernt.")
-      }
-      .alert(
-        "Hinweis",
-        isPresented: .init(get: { model.meldung != nil }, set: { if !$0 { model.meldung = nil } })
-      ) {
-        Button("OK", role: .cancel) {}
-      } message: {
-        Text(model.meldung ?? "")
-      }
-      .task { model.aktualisieren() }
-      // Rückkehr aus dem Hintergrund: nachladen und dabei die Warteschlange
-      // abarbeiten – zwischendurch kann die Verbindung wiedergekommen sein,
-      // ohne dass die Wache lief.
-      .onChange(of: szenenPhase) { neu in
-        if neu == .active { model.aktualisieren() }
-      }
+    }
+    .animation(.easeOut(duration: 0.2), value: model.rueckmeldung)
+    .task(id: model.rueckmeldung) {
+      guard model.rueckmeldung != nil else { return }
+      try? await Task.sleep(nanoseconds: 2_500_000_000)
+      if !Task.isCancelled { model.rueckmeldung = nil }
+    }
+    .sheet(isPresented: $zeigeEinstellungen, onDismiss: model.datenquelleNeuAufbauen) {
+      SettingsView()
+    }
+    .alert("Letzten Eintrag löschen?", isPresented: $zeigeUndoNachfrage) {
+      Button("Abbrechen", role: .cancel) {}
+      Button("Löschen", role: .destructive) { model.letztenRueckgaengig() }
+    } message: {
+      Text("Der zuletzt angelegte Wickel-Eintrag wird entfernt.")
+    }
+    .alert(
+      "Hinweis",
+      isPresented: .init(get: { model.meldung != nil }, set: { if !$0 { model.meldung = nil } })
+    ) {
+      Button("OK", role: .cancel) {}
+    } message: {
+      Text(model.meldung ?? "")
+    }
+    .task { model.aktualisieren() }
+    // Rückkehr aus dem Hintergrund: nachladen und dabei die Warteschlange
+    // abarbeiten – zwischendurch kann die Verbindung wiedergekommen sein,
+    // ohne dass die Wache lief.
+    .onChange(of: szenenPhase) { neu in
+      if neu == .active { model.aktualisieren() }
     }
   }
 
@@ -64,94 +86,67 @@ struct HomeView: View {
   @ViewBuilder
   private var inhalt: some View {
     if model.laedt && model.stats == nil && model.fehler == nil {
-      ProgressView().tint(Mh.minze500)
+      MhLaden()
     } else if let fehler = model.fehler {
       FehlerAnsicht(meldung: fehler) { model.aktualisieren() }
     } else {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-          // Offline-Hinweis über allem: der Nutzer soll sofort sehen, dass er
-          // zwar weiterarbeiten kann, der Stand aber noch nicht beim Server
-          // ist.
-          if model.offlineGrund != nil || model.ausstehend > 0 {
-            OfflineBanner(grund: model.offlineGrund, ausstehend: model.ausstehend)
-          }
-          // App-Titel im Inhalt statt in der Toolbar: iOS faltet Text-Items
-          // dort in ein Überlauf-Menü.
-          Text("🧷 Wickel-Tracker")
-            .font(.nunitoExtraBold(26))
-            .foregroundStyle(Mh.text)
-          if let stats = model.stats {
-            LetzterEintragKarte(
-              last: stats.last, stoffwindelEnabled: model.stoffwindelEnabled)
-          }
-          Text("Neuer Eintrag").font(.nunitoBold(16)).foregroundStyle(Mh.text)
-          if model.stoffwindelEnabled {
-            stoffwindelSchalter
-          }
-          schnellEingabe
-          Button {
-            zeigeUndoNachfrage = true
-          } label: {
-            Label("Letzten rückgängig", systemImage: "arrow.uturn.backward")
-              .font(.nunitoSemiBold(15))
-          }
-          .buttonStyle(MhRandButtonStil())
-          if let stats = model.stats { statistik(stats) }
-        }
-        .padding(16)
+      if model.stoffwindelEnabled {
+        stoffwindelSchalter
       }
-      .refreshable { model.aktualisieren() }
+      VStack(spacing: Mh.abstand2) {
+        ForEach(WickelType.anzeigeReihenfolge) { typ in
+          WickelEintragZeile(typ: typ) { model.anlegen(typ) }
+        }
+      }
+      rueckgaengig
+      if let stats = model.stats {
+        LetzterEintrag(last: stats.last, stoffwindelEnabled: model.stoffwindelEnabled)
+        statistik(stats)
+      }
     }
   }
 
+  /// Nur bei eingeschalteter Stoffwindel-Funktion: gilt für den nächsten Eintrag.
   private var stoffwindelSchalter: some View {
-    MhKarte {
-      Toggle(isOn: $model.stoffwindelActive) {
-        HStack(spacing: 12) {
-          Image(systemName: "washer")
-            .foregroundStyle(model.stoffwindelActive ? Mh.stoffwindelAkzent : Mh.textSekundaer)
-          Text("Stoffwindel").font(.nunito(16)).foregroundStyle(Mh.text)
-        }
+    Toggle(isOn: $model.stoffwindelActive) {
+      HStack(spacing: Mh.abstand3) {
+        MhSymbol("MhDiaper").foregroundStyle(Mh.textSecondary)
+        Text("Stoffwindel").mhText(.label).foregroundStyle(Mh.textStrong)
       }
-      .tint(Mh.minze500)
     }
+    .tint(Mh.primary)
+    .frame(minHeight: Mh.touch)
+    .padding(.bottom, Mh.abstand3)
   }
 
-  private var schnellEingabe: some View {
-    // Kategorie-Buttons nach dem Chip-Muster: Pastellfläche (300) mit
-    // 900er-Text derselben Farbe, Radius 12, Höhe 44 (Touch-Minimum).
-    let spalten = [GridItem(.adaptive(minimum: 150), spacing: 10)]
-    return LazyVGrid(columns: spalten, alignment: .leading, spacing: 10) {
-      ForEach(WickelType.allCases) { type in
-        Button {
-          model.anlegen(type)
-        } label: {
-          HStack(spacing: 6) {
-            Image(systemName: type.symbol).font(.system(size: 15, weight: .bold))
-            Text(type.label).lineLimit(1)
-          }
-          .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(MhButtonStil(flaeche: type.buttonFlaeche, text: type.buttonText))
-        .accessibilityIdentifier("eintrag-\(type.rawValue)")
+  private var rueckgaengig: some View {
+    HStack(spacing: Mh.abstand3) {
+      Text("Letzten Eintrag zurücknehmen")
+        .mhText(.small)
+        .foregroundStyle(Mh.textSecondary)
+      Spacer(minLength: 0)
+      Button {
+        zeigeUndoNachfrage = true
+      } label: {
+        MhButtonInhalt("Rückgängig", symbol: "MhUndo", symbolGroesse: Mh.symbolKlein)
       }
+      .buttonStyle(.mhLoeschen)
     }
+    .padding(.top, Mh.abstand2)
+    .padding(.leading, 2)
   }
 
   private func statistik(_ stats: WickelStats) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Statistik").font(.nunitoBold(16)).foregroundStyle(Mh.text)
-      PeriodenKarte(
-        titel: "Heute", periode: stats.today,
-        stoffwindelEnabled: model.stoffwindelEnabled, hervorgehoben: true)
-      PeriodenKarte(
+    VStack(alignment: .leading, spacing: 0) {
+      PeriodenBlock(
+        titel: "Heute", periode: stats.today, stoffwindelEnabled: model.stoffwindelEnabled)
+      PeriodenBlock(
         titel: "Letzte 7 Tage", periode: stats.week,
         stoffwindelEnabled: model.stoffwindelEnabled)
-      PeriodenKarte(
-        titel: "Letzte 3 Wochen", periode: stats.threeWeeks,
+      PeriodenBlock(
+        titel: "Letzte 21 Tage", periode: stats.threeWeeks,
         stoffwindelEnabled: model.stoffwindelEnabled)
-      PeriodenKarte(
+      PeriodenBlock(
         titel: "Letzte 30 Tage", periode: stats.month,
         stoffwindelEnabled: model.stoffwindelEnabled)
     }
@@ -160,109 +155,71 @@ struct HomeView: View {
 
 // MARK: - Letzter Eintrag
 
-private struct LetzterEintragKarte: View {
+/// Zwischen zwei Haarlinien: Typ mit Punkt links, Zeit rechts.
+private struct LetzterEintrag: View {
   let last: LastEntry
   let stoffwindelEnabled: Bool
 
   var body: some View {
-    MhKarte {
-      HStack(spacing: 14) {
-        ZStack {
-          Circle()
-            .fill(last.type?.avatarFlaeche ?? Mh.grauFlaeche)
-            .frame(width: 40, height: 40)
-          Image(systemName: last.type?.symbol ?? "clock.arrow.circlepath")
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(last.type?.akzent ?? Mh.textSekundaer)
-        }
-        VStack(alignment: .leading, spacing: 2) {
-          if let type = last.type {
-            Text("Zuletzt: \(type.label)").font(.nunito(16)).foregroundStyle(Mh.text)
-            if let zeit = last.time {
-              let suffix = stoffwindelEnabled && last.stoffwindel ? " · 🧷 Stoffwindel" : ""
-              Text(
-                "\(zeit.tagesLabel) um \(zeit.formatted(date: .omitted, time: .shortened)) · \(zeit.relativ)\(suffix)"
-              )
-              .font(.nunito(14))
-              .foregroundStyle(Mh.textSekundaer)
+    VStack(spacing: 0) {
+      MhTrennlinie()
+      HStack(alignment: .bottom, spacing: Mh.abstand3) {
+        VStack(alignment: .leading, spacing: Mh.abstand1) {
+          Text("Letzter Eintrag").mhText(.label).foregroundStyle(Mh.textSecondary)
+          if let typ = last.type {
+            HStack(spacing: 10) {
+              WickelPunkt(typ: typ)
+              Text(typ.label)
+                .font(.custom(MhSchrift.medium, size: 16, relativeTo: .body))
+                .foregroundStyle(Mh.textStrong)
+              if stoffwindelEnabled && last.stoffwindel {
+                MhMarke("Stoffwindel")
+              }
             }
           } else {
-            Text("Noch kein Eintrag").font(.nunito(16)).foregroundStyle(Mh.text)
-            Text("Lege unten den ersten Wickel-Vorgang an.")
-              .font(.nunito(14))
-              .foregroundStyle(Mh.textSekundaer)
+            Text("Noch kein Eintrag").mhText(.body).foregroundStyle(Mh.textSecondary)
           }
         }
         Spacer(minLength: 0)
+        if last.type != nil, let zeit = last.time {
+          // Die „vor …“-Angabe läuft weiter, ohne neu zu laden.
+          TimelineView(.periodic(from: .now, by: 30)) { kontext in
+            Text("\(zeit.relativ(bis: kontext.date)) · \(zeit.zeitpunktLabel)")
+              .mhText(.small)
+              .monospacedDigit()
+              .foregroundStyle(Mh.textSecondary)
+              .multilineTextAlignment(.trailing)
+          }
+        }
       }
+      .padding(.vertical, Mh.abstand4)
+      .accessibilityElement(children: .combine)
+      MhTrennlinie()
     }
+    .padding(.top, Mh.abstand6)
   }
 }
 
-// MARK: - Perioden-Karte
+// MARK: - Statistik
 
-private struct PeriodenKarte: View {
+private struct PeriodenBlock: View {
   let titel: String
   let periode: PeriodStats
   let stoffwindelEnabled: Bool
-  var hervorgehoben = false
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Text(titel).font(.nunitoBold(14)).foregroundStyle(Mh.text)
-        Spacer()
-        Text("\(periode.total) gesamt").font(.nunitoExtraBold(14)).foregroundStyle(Mh.text)
-      }
-      ForEach(WickelType.allCases) { type in
-        ProzentZeile(
-          symbol: type.symbol, label: type.label, pct: periode.pctOf(type),
-          farbe: type.akzent, grund: type.avatarFlaeche)
+    VStack(alignment: .leading, spacing: 0) {
+      MhGruppenLabel(titel, rechts: periode.total == 1 ? "1 Eintrag" : "\(periode.total) Einträge")
+        .padding(.top, Mh.abstand2)
+      ForEach(WickelType.anzeigeReihenfolge) { typ in
+        WickelStatZeile(
+          typ: typ, label: typ.label, prozent: periode.pctOf(typ), farbe: typ.balkenFarbe)
       }
       if stoffwindelEnabled {
-        ProzentZeile(
-          symbol: "washer", label: "Stoffwindel", pct: periode.stoffwindelPct,
-          farbe: Mh.stoffwindelAkzent, grund: Mh.stoffwindelFlaeche)
+        WickelStatZeile(
+          typ: nil, label: "Stoffwindel", prozent: periode.stoffwindelPct,
+          farbe: Mh.textTertiary)
       }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(16)
-    // "Heute" hervorgehoben als zarte Minze-Fläche (Dark-Äquivalent).
-    .background(hervorgehoben ? Mh.minzeFlaeche : Mh.karte)
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-    .shadow(
-      color: hervorgehoben ? .clear : Color(UIColor(rgb: 0x22392C)).opacity(0.10),
-      radius: 6, y: 2)
-  }
-}
-
-private struct ProzentZeile: View {
-  let symbol: String
-  let label: String
-  let pct: Int
-  let farbe: Color
-  let grund: Color
-
-  var body: some View {
-    HStack(spacing: 8) {
-      Image(systemName: symbol)
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(farbe)
-        .frame(width: 20)
-      Text(label).font(.nunito(14)).foregroundStyle(Mh.text)
-        .frame(width: 86, alignment: .leading)
-      GeometryReader { geo in
-        ZStack(alignment: .leading) {
-          Capsule().fill(grund)
-          Capsule().fill(farbe)
-            .frame(width: geo.size.width * CGFloat(pct) / 100)
-        }
-      }
-      .frame(height: 8)
-      Text("\(pct)%")
-        .font(.nunito(13))
-        .foregroundStyle(Mh.text)
-        .frame(width: 40, alignment: .trailing)
     }
   }
 }
@@ -274,83 +231,37 @@ private struct FehlerAnsicht: View {
   let onErneut: () -> Void
 
   var body: some View {
-    VStack(spacing: 20) {
-      Image(systemName: "exclamationmark.circle")
-        .font(.system(size: 52))
-        .foregroundStyle(Mh.fehlerText)
+    VStack(spacing: Mh.abstand4) {
+      MhSymbol("MhAlert", groesse: 32).foregroundStyle(Mh.danger)
       Text(meldung)
-        .font(.nunito(16))
+        .mhText(.body)
         .foregroundStyle(Mh.text)
         .multilineTextAlignment(.center)
       Button {
         onErneut()
       } label: {
-        Label("Erneut versuchen", systemImage: "arrow.clockwise")
+        MhButtonInhalt("Erneut versuchen", symbol: "MhRefresh")
       }
-      .buttonStyle(MhButtonStil())
+      .buttonStyle(.mhHaupt)
     }
-    .padding(32)
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, Mh.abstand8)
   }
 }
 
-// MARK: - Helfer
+// MARK: - Offline-Hinweis
 
-extension Date {
-  var tagesLabel: String {
-    if Calendar.current.isDateInToday(self) { return "Heute" }
-    if Calendar.current.isDateInYesterday(self) { return "Gestern" }
-    return formatted(.dateTime.day(.twoDigits).month(.twoDigits).year())
-  }
-
-  /// „vor X min/h/d“ – wie in der Flutter-App.
-  var relativ: String {
-    let differenz = Int(Date().timeIntervalSince(self))
-    let minuten = differenz / 60
-    if minuten < 1 { return "gerade eben" }
-    if minuten < 60 { return "vor \(minuten) min" }
-    let stunden = minuten / 60
-    if stunden < 24 { return "vor \(stunden) h" }
-    return "vor \(stunden / 24) d"
-  }
-}
-
-/// Sekundär-Button: Rand statt Fläche, grüner Text.
-struct MhRandButtonStil: ButtonStyle {
-  func makeBody(configuration: Configuration) -> some View {
-    configuration.label
-      .foregroundStyle(Mh.gruenText)
-      .padding(.horizontal, 16)
-      .frame(minHeight: 40)
-      .overlay(
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-          .strokeBorder(Mh.rand, lineWidth: 1.5)
-      )
-      .opacity(configuration.isPressed ? 0.6 : 1)
-  }
-}
-
-/// Hinweisleiste über dem Inhalt: Verbindung weg, App weiter benutzbar.
-private struct OfflineBanner: View {
+/// Hinweis über dem Inhalt: Verbindung weg, App weiter benutzbar.
+private struct OfflineHinweis: View {
   /// Grund der abgebrochenen Verbindung; nil heisst „wieder online, aber es
   /// wartet noch etwas auf die Übertragung“.
   let grund: String?
   let ausstehend: Int
 
   var body: some View {
-    HStack(alignment: .top, spacing: 10) {
-      Image(systemName: grund == nil ? "arrow.up.circle" : "wifi.slash")
-        .font(.system(size: 16, weight: .semibold))
-        .foregroundStyle(Mh.honig900)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(titel).font(.nunitoBold(14)).foregroundStyle(Mh.honig900)
-        Text(untertitel).font(.nunito(12)).foregroundStyle(Mh.honig900.opacity(0.85))
-      }
-      Spacer(minLength: 0)
-    }
-    .padding(12)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Mh.honig300)
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    MhHinweis(
+      untertitel, titel: titel, art: .warnung,
+      symbol: grund == nil ? "MhUpload" : "MhCloudOff")
   }
 
   private var titel: String {

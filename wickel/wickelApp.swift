@@ -5,7 +5,8 @@ struct WickelApp: App {
   @Environment(\.scenePhase) private var scenePhase
 
   init() {
-    NunitoFont.registrieren()
+    // Figtree, Navigationsleiste und Segmente nach Minze & Honig 2.0.
+    MhDarstellung.einrichten()
     AppSettings.migrationAusfuehren()
     #if DEBUG
       // Nur UI-Test „Bildschirmfotos“: erfundene Einträge im Lokal-Modus.

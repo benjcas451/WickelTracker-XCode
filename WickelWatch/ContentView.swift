@@ -18,8 +18,10 @@ struct ContentView: View {
         if store.stoffwindelEnabled {
           Toggle(isOn: $store.stoffwindelActive) {
             Label("Stoffwindel", systemImage: "washer.fill")
+              .font(Mh.button)
+              .foregroundStyle(Mh.text)
           }
-          .tint(WickelType.stoffwindelColor)
+          .tint(Mh.primary)
           .padding(.bottom, 2)
         }
 
@@ -28,10 +30,13 @@ struct ContentView: View {
             store.add(type)
             WKInterfaceDevice.current().play(.success)
           } label: {
-            Label(type.label, systemImage: type.symbol)
-              .fontWeight(.bold)
-              .foregroundStyle(type.buttonText)
-              .frame(maxWidth: .infinity)
+            Label {
+              Text(type.label).foregroundStyle(type.buttonText)
+            } icon: {
+              Image(systemName: type.symbol).foregroundStyle(type.akzent)
+            }
+            .font(Mh.button)
+            .frame(maxWidth: .infinity)
           }
           .buttonStyle(.borderedProminent)
           .tint(type.color)
@@ -44,30 +49,31 @@ struct ContentView: View {
               : "\(store.pendingRelay.count) Einträge warten auf das iPhone",
             systemImage: "arrow.triangle.2.circlepath"
           )
-          .font(.footnote)
-          .foregroundStyle(.secondary)
+          .font(Mh.footnote)
+          .foregroundStyle(Mh.textSecondary)
           .multilineTextAlignment(.center)
           .padding(.top, 4)
         }
 
         if let message = store.errorMessage {
           Text(message)
-            .font(.footnote)
-            .foregroundStyle(Color(red: 0xF0 / 255, green: 0xB6 / 255, blue: 0xB1 / 255))
+            .font(Mh.footnote)
+            .foregroundStyle(Mh.danger)
             .multilineTextAlignment(.center)
             .padding(.top, 4)
         }
 
         if let notice = store.notice {
           Text(notice)
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+            .font(Mh.caption)
+            .foregroundStyle(Mh.textSecondary)
             .multilineTextAlignment(.center)
         }
 
         connectionStatus
       }
     }
+    .font(Mh.body)
     .navigationTitle("Wickeln")
     .sheet(isPresented: $showsConnection) {
       ConnectionView(store: store)
@@ -84,11 +90,11 @@ struct ContentView: View {
       showsConnection = true
     } label: {
       Label(store.statusText, systemImage: store.connection == nil ? "iphone" : "link")
-        .font(.caption2)
+        .font(Mh.caption)
         .frame(maxWidth: .infinity)
     }
     .buttonStyle(.bordered)
-    .tint(store.connection == nil ? .gray : WickelType.minze)
+    .tint(store.connection == nil ? Mh.textSecondary : WickelType.minze)
     .padding(.top, 8)
   }
 }
@@ -105,29 +111,30 @@ private struct ConnectionView: View {
     ScrollView {
       VStack(spacing: 8) {
         Text("Server-Verbindung")
-          .font(.headline)
+          .font(Mh.headline)
+          .foregroundStyle(Mh.textStrong)
 
         Text(store.statusText)
-          .font(.body)
-          .foregroundStyle(connected ? WickelType.minze : .secondary)
+          .font(Mh.body)
+          .foregroundStyle(connected ? WickelType.minze : Mh.textSecondary)
 
         Text(
           connected
             ? "Einträge gehen direkt an den Server — auch ohne laufende iPhone-App. Ist er nicht erreichbar, springt die Uhr automatisch auf das iPhone um."
             : "Alle Einträge laufen über das iPhone. Ist dort ein Server eingerichtet, kann die Uhr die Verbindung übernehmen."
         )
-        .font(.caption2)
-        .foregroundStyle(.secondary)
+        .font(Mh.caption)
+        .foregroundStyle(Mh.textSecondary)
         .multilineTextAlignment(.center)
 
         if store.isImporting {
-          ProgressView()
+          ProgressView().tint(Mh.primary)
         }
 
         if let message = store.errorMessage {
           Text(message)
-            .font(.caption2)
-            .foregroundStyle(Color(red: 0xF0 / 255, green: 0xB6 / 255, blue: 0xB1 / 255))
+            .font(Mh.caption)
+            .foregroundStyle(Mh.danger)
             .multilineTextAlignment(.center)
         }
 
@@ -141,8 +148,8 @@ private struct ConnectionView: View {
           .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
-        .tint(WickelType.minze)
-        .foregroundStyle(Color(red: 0x22 / 255, green: 0x39 / 255, blue: 0x2C / 255))
+        .tint(Mh.primary)
+        .foregroundStyle(Mh.onPrimary)
         .disabled(store.isImporting)
 
         if connected {
@@ -153,6 +160,7 @@ private struct ConnectionView: View {
               .frame(maxWidth: .infinity)
           }
           .buttonStyle(.bordered)
+          .tint(Mh.danger)
           .disabled(store.isImporting)
         }
 
@@ -161,6 +169,7 @@ private struct ConnectionView: View {
       }
       .padding(.horizontal, 4)
     }
+    .font(Mh.button)
   }
 }
 
@@ -173,25 +182,29 @@ struct LastEntryView: View {
   var body: some View {
     VStack(spacing: 2) {
       if let type {
-        Label(type.label, systemImage: type.symbol)
-          .foregroundStyle(type.akzent)
-          .font(.headline)
+        Label {
+          Text(type.label).foregroundStyle(Mh.textStrong)
+        } icon: {
+          Image(systemName: type.symbol).foregroundStyle(type.akzent)
+        }
+        .font(Mh.headline)
         if let time {
           TimelineView(.periodic(from: .now, by: 60)) { context in
             Text("\(Self.relative(time, now: context.date)) · \(Self.hhmm(time))")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
+              .font(Mh.footnote)
+              .monospacedDigit()
+              .foregroundStyle(Mh.textSecondary)
           }
         }
         if stoffwindel {
           Label("Stoffwindel", systemImage: "washer.fill")
-            .font(.caption2)
+            .font(Mh.caption)
             .foregroundStyle(WickelType.stoffwindelColor)
         }
       } else {
         Text("Noch kein Eintrag")
-          .font(.headline)
-          .foregroundStyle(.secondary)
+          .font(Mh.headline)
+          .foregroundStyle(Mh.textSecondary)
       }
     }
     .frame(maxWidth: .infinity)

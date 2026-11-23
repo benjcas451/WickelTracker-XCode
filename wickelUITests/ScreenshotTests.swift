@@ -46,6 +46,9 @@ final class ScreenshotTests: XCTestCase {
     let app = XCUIApplication()
     app.launchArguments += [
       "-MhBildschirmfotos", "1",
+      // Systemtexte und Uhrzeiten auf Deutsch, wie auf Lucas' Geräten.
+      "-AppleLanguages", "(de)",
+      "-AppleLocale", "de_DE",
       "-data_source_mode", "demo",
       "-stoffwindel_enabled", stoffwindel ? "YES" : "NO",
     ]

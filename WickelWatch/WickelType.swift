@@ -3,19 +3,19 @@ import SwiftUI
 /// Spiegel von `WickelType` der iPhone-App.
 ///
 /// `rawValue` entspricht exakt `apiValue` — er geht so über WatchConnectivity
-/// ans iPhone. Farben nach Design-System „Minze & Honig“ (Dark-Regeln aus
-/// Guide 2.8): Pastellflächen 300 mit 900er-Text; Urin = Honig,
-/// Stuhlgang = Grau, Beides = Flieder, Stoffwindel = Minze.
+/// ans iPhone. Farben nach Minze & Honig 2.0 (dunkle Rollen, siehe MhUhr.swift):
+/// neutrale Flächen, Farbe nur als Signal am Symbol – Urin = data2 (Honig),
+/// Beides = data1 (Minze), Stuhlgang = data3 (Flieder), wie im Web.
 enum WickelType: String, CaseIterable, Identifiable {
   case urin
   case stuhlgang
   case beides
 
-  /// Kennfarbe der Stoffwindel-Funktion (Minze 300).
-  static let stoffwindelColor = Color(red: 0xA8 / 255, green: 0xD5 / 255, blue: 0xBA / 255)
+  /// Kennfarbe der Stoffwindel-Funktion (Rolle link bzw. onTint, Minze 300).
+  static let stoffwindelColor = Mh.link
 
-  /// Minze 300 — Akzent für Status/Import (ersetzt das frühere Lila).
-  static let minze = stoffwindelColor
+  /// Akzent für Status/Verbindung (Rolle link).
+  static let minze = Mh.link
 
   var id: String { rawValue }
 
@@ -35,31 +35,18 @@ enum WickelType: String, CaseIterable, Identifiable {
     }
   }
 
-  /// Kräftige Fläche (300) für die Eingabe-Buttons; Grau für Stuhlgang.
-  var color: Color {
-    switch self {
-    case .urin: return Color(red: 0xF7 / 255, green: 0xE8 / 255, blue: 0xA4 / 255)
-    case .stuhlgang: return Color(red: 0x3A / 255, green: 0x40 / 255, blue: 0x3C / 255)
-    case .beides: return Color(red: 0xCD / 255, green: 0xB4 / 255, blue: 0xDB / 255)
-    }
-  }
+  /// Fläche der Eingabe-Buttons: neutral (surfaceRaised), keine Pastellfläche.
+  var color: Color { Mh.surfaceRaised }
 
-  /// Text/Icon auf der Button-Fläche (900er bzw. helles Grau).
-  var buttonText: Color {
-    switch self {
-    case .urin: return Color(red: 0x47 / 255, green: 0x3A / 255, blue: 0x17 / 255)
-    case .stuhlgang: return Color(red: 0xEC / 255, green: 0xEF / 255, blue: 0xED / 255)
-    case .beides: return Color(red: 0x37 / 255, green: 0x26 / 255, blue: 0x3F / 255)
-    }
-  }
+  /// Text auf der Button-Fläche.
+  var buttonText: Color { Mh.textStrong }
 
-  /// Akzent auf dunklem Grund (Text/Icons): die 300er-Stufe, für Stuhlgang
-  /// das helle Grau 300.
+  /// Datenfarbe des Typs (Symbol, letzter Eintrag).
   var akzent: Color {
     switch self {
-    case .urin: return Color(red: 0xF7 / 255, green: 0xE8 / 255, blue: 0xA4 / 255)
-    case .stuhlgang: return Color(red: 0xC6 / 255, green: 0xCD / 255, blue: 0xC9 / 255)
-    case .beides: return Color(red: 0xCD / 255, green: 0xB4 / 255, blue: 0xDB / 255)
+    case .urin: return Mh.data2
+    case .stuhlgang: return Mh.data3
+    case .beides: return Mh.data1
     }
   }
 }

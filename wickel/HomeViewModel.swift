@@ -14,8 +14,11 @@ final class HomeViewModel: ObservableObject {
   /// Umschaltfläche: nächster Eintrag ist eine Stoffwindel.
   @Published var stoffwindelActive = false
 
-  /// Kurzmeldungen (Fehler bei Aktionen, Backup-Ergebnisse).
+  /// Meldungen, die bestätigt werden müssen (Fehler, abgelehnte Einträge).
   @Published var meldung: String?
+
+  /// Kurze Rückmeldung, die von selbst verschwindet („Urin eingetragen“).
+  @Published var rueckmeldung: Rueckmeldung?
 
   /// Grund der abgebrochenen Verbindung; nil heisst „online“.
   @Published var offlineGrund: String?
@@ -32,10 +35,10 @@ final class HomeViewModel: ObservableObject {
       .receive(on: DispatchQueue.main)
       .sink { [weak self] mitteilung in
         if let anzahl = mitteilung.userInfo?["anzahl"] as? Int {
-          self?.meldung =
+          self?.rueckmeldung = Rueckmeldung(
             anzahl == 1
-            ? "1 Eintrag von der Apple Watch übernommen"
-            : "\(anzahl) Einträge von der Apple Watch übernommen"
+              ? "1 Eintrag von der Apple Watch übernommen"
+              : "\(anzahl) Einträge von der Apple Watch übernommen")
         }
         self?.aktualisieren()
       }
@@ -91,14 +94,14 @@ final class HomeViewModel: ObservableObject {
     let sw = stoffwindelEnabled && stoffwindelActive
     fuehreAus { [self] in
       try await service.addEntry(type: type, stoffwindel: sw, time: nil)
-      meldung = "\(type.label) gespeichert\(sw ? " · 🧷 Stoffwindel" : "")"
+      rueckmeldung = Rueckmeldung("\(type.label) eingetragen\(sw ? " · Stoffwindel" : "")")
     }
   }
 
   func letztenRueckgaengig() {
     fuehreAus { [self] in
       let entfernt = try await service.undoLast()
-      meldung = entfernt ? "Letzter Eintrag gelöscht" : "Kein Eintrag vorhanden"
+      rueckmeldung = Rueckmeldung(entfernt ? "Letzter Eintrag gelöscht" : "Kein Eintrag vorhanden")
     }
   }
 
@@ -124,4 +127,13 @@ final class HomeViewModel: ObservableObject {
       }
     }
   }
+}
+
+/// Inhalt einer kurzen Rückmeldung; die eigene Kennung startet die
+/// Anzeigedauer auch bei gleichem Text neu.
+struct Rueckmeldung: Equatable {
+  let id = UUID()
+  let text: String
+
+  init(_ text: String) { self.text = text }
 }

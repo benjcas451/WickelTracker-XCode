@@ -1,8 +1,8 @@
 import Foundation
 
 /// Art des Wickel-Eintrags. `apiValue` ist exakt der String, den die API
-/// erwartet bzw. liefert (urin, stuhlgang, beides). Die Farbzuordnung
-/// (Honig/Grau/Flieder) liegt im Theme (Theme.swift).
+/// erwartet bzw. liefert (urin, stuhlgang, beides). Reihenfolge und
+/// Datenfarben der Oberfläche liegen in WickelDarstellung.swift.
 enum WickelType: String, CaseIterable, Identifiable, Codable {
   case urin
   case stuhlgang
@@ -11,20 +11,12 @@ enum WickelType: String, CaseIterable, Identifiable, Codable {
   var id: String { rawValue }
   var apiValue: String { rawValue }
 
+  /// Anzeigename, gleich wie auf der Webseite.
   var label: String {
     switch self {
     case .urin: "Urin"
-    case .stuhlgang: "Stuhlgang"
-    case .beides: "Beides"
-    }
-  }
-
-  /// SF-Symbol analog zu den Material-Icons der Android-App.
-  var symbol: String {
-    switch self {
-    case .urin: "drop.fill"
-    case .stuhlgang: "cloud.fill"
-    case .beides: "circle.grid.2x1.fill"
+    case .stuhlgang: "Nur Stuhlgang"
+    case .beides: "Urin + Stuhlgang"
     }
   }
 
