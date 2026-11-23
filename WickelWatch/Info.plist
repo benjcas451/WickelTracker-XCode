@@ -22,10 +22,9 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>UIAppFonts</key>
 	<array>
-		<string>nunito_regular.ttf</string>
-		<string>nunito_semibold.ttf</string>
-		<string>nunito_bold.ttf</string>
-		<string>nunito_extrabold.ttf</string>
+		<string>Figtree-Regular.ttf</string>
+		<string>Figtree-Medium.ttf</string>
+		<string>Figtree-SemiBold.ttf</string>
 	</array>
 	<key>WKApplication</key>
 	<true/>

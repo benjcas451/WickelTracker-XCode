@@ -12,5 +12,12 @@
 	     und mergt die INFOPLIST_KEY_*-Werte hinein. -->
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<!-- Schrift Figtree (Minze & Honig 2.0), liegt in wickel/Fonts. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Figtree-Regular.ttf</string>
+		<string>Figtree-Medium.ttf</string>
+		<string>Figtree-SemiBold.ttf</string>
+	</array>
 </dict>
 </plist>
